@@ -2,8 +2,10 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
+
+use parking_lot::Mutex;
 
 trait GenericInputData<T> {
     fn read(&self) -> T;
@@ -110,10 +112,10 @@ fn main() {
     let mut workers = create_workers(input_list);
 
     if let Some(first_worker) = workers.first().cloned() {
-        let mut first_worker = first_worker.lock().unwrap();
+        let mut first_worker = first_worker.lock();
 
         for worker in workers.iter_mut().skip(1) {
-            let mut worker = worker.lock().unwrap();
+            let mut worker = worker.lock();
             worker.map();
             first_worker.reduce(&*worker);
         }
