@@ -1,3 +1,7 @@
+from threading import Thread
+import os
+
+
 class InputData:
     """
     This class represents the input data for a program. It is an abstract class that defines the interface for reading input data.
@@ -130,3 +134,71 @@ class LineCountWorker(Worker):
         """
         self.result += other.result
         return self.result
+
+
+def generate_inputs(data_dir):
+    """
+    Generates PathInputData objects for all files in a given directory.
+
+    Args:
+        data_dir (str): The path to the directory containing the input data files.
+
+    Yields:
+        PathInputData: A PathInputData object for each input data file in the directory.
+    """
+    for name in os.listdir(data_dir):
+        path = os.path.join(data_dir, name)
+        if os.path.isfile(path):
+            yield PathInputData(path)
+
+
+def create_workers(input_list):
+    """
+    Creates LineCountWorker objects for a given list of input data.
+
+    Args:
+        input_list (list): A list of InputData objects to create workers for.
+
+    Returns:
+        list: A list of LineCountWorker objects created for the input data.
+    """
+    workers = []
+    for input_data in input_list:
+        workers.append(LineCountWorker(input_data))
+    return workers
+
+
+def execute(workers):
+    """
+    Executes a MapReduce operation on a list of workers.
+
+    Args:
+        workers (list): A list of Worker objects to execute the MapReduce operation on.
+
+    Returns:
+        object: The result of the MapReduce operation.
+    """
+    threads = [Thread(target=w.map) for w in workers]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    first, *rest = workers
+    for worker in rest:
+        first.reduce(worker)
+    return first.result
+
+
+def mapreduce(data_dir):
+    """
+    Executes a MapReduce operation on a given directory of input data files.
+
+    Args:
+        data_dir (str): The path to the directory containing the input data files.
+
+    Returns:
+        object: The result of the MapReduce operation.
+    """
+    inputs = generate_inputs(data_dir)
+    workers = create_workers(inputs)
+    return execute(workers)
