@@ -1,21 +1,58 @@
+import random
 from threading import Thread
 import os
 
 
-class InputData:
+class GenericInputData:
     """
-    This class represents the input data for a program. It is an abstract class that defines the interface for reading input data.
+    This class represents a generic input data object that can be used as a base class for other input data classes. It defines two abstract methods: `read` and `generate_inputs`, which must be implemented by any concrete subclasses.
+
+    Attributes:
+        None
+
+    Methods:
+        read(): Reads the input data and returns it in a format that can be processed by the worker classes.
+        generate_inputs(config): Generates a list of input data objects based on a configuration object.
+    """
+
+    def read(self):
+        """
+        Reads the input data and returns it in a format that can be processed by the worker classes.
+
+        Raises:
+            NotImplementedError: This method must be implemented by any concrete subclass.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def generate_inputs(cls, config):
+        """
+        Generates a list of input data objects based on a configuration object.
+
+        Args:
+            config (object): A configuration object that specifies how to generate the input data objects.
+
+        Raises:
+            NotImplementedError: This method must be implemented by any concrete subclass.
+        """
+        raise NotImplementedError
+
+
+class PathInputData(GenericInputData):
+    """
+    This class represents input data that is stored in a file on the local file system. It inherits from the GenericInputData class and overrides the read method to read the input data from the file. It also defines a class method called generate_inputs that can be used to generate a list of PathInputData objects based on a configuration object.
 
     Attributes:
         path (str): The path to the input data file.
 
     Methods:
-        read(): Reads the input data from the file specified by the path attribute and returns it as a string.
+        read(): Reads the input data from the file and returns it as a string.
+        generate_inputs(config): Generates a list of PathInputData objects based on a configuration object.
     """
 
     def __init__(self, path):
         """
-        Initializes the InputData object with the given path.
+        Initializes a new PathInputData object with the given file path.
 
         Args:
             path (str): The path to the input data file.
@@ -24,82 +61,94 @@ class InputData:
 
     def read(self):
         """
-        Reads the input data from the file specified by the path attribute and returns it as a string.
+        Reads the input data from the file and returns it as a string.
 
         Returns:
-            str: The input data read from the file.
-        """
-        raise NotImplementedError
-
-
-class PathInputData(InputData):
-    """
-    This class represents the input data for a program that is stored in a file. It inherits from the InputData class and overrides the read method to read data from a file.
-
-    Attributes:
-        path (str): The path to the input data file.
-
-    Methods:
-        read(): Reads the input data from the file specified by the path attribute and returns it as a string.
-    """
-
-    def read(self):
-        """
-        Reads the input data from the file specified by the path attribute and returns it as a string.
-
-        Returns:
-            str: The input data read from the file.
+            str: The input data from the file.
         """
         with open(self.path) as f:
             return f.read()
 
+    @classmethod
+    def generate_inputs(cls, config):
+        """
+        Generates a list of PathInputData objects based on a configuration object.
 
-class Worker:
+        Args:
+            config (dict): A dictionary containing the 'data_dir' key with the path to the directory containing the input data files.
+
+        Yields:
+            PathInputData: A PathInputData object for each input data file in the directory.
+        """
+        data_dir = config['data_dir']
+        for name in os.listdir(data_dir):
+            yield cls(os.path.join(data_dir, name))
+
+
+class GenericWorker:
     """
-    This class represents a worker in a MapReduce framework. It is an abstract class that defines the interface for map and reduce operations.
+    This class represents a generic worker object that can be used as a base class for other worker classes. It defines three abstract methods: `map`, `reduce`, and `create_workers`, which must be implemented by any concrete subclasses.
 
     Attributes:
-        input_data (InputData): The input data for the worker.
-        result (object): The result of the map or reduce operation.
+        input_data (GenericInputData): The input data for the worker.
+        result (object): The result of the worker's computation.
 
     Methods:
-        map(): Performs the map operation on the input data and returns the result.
-        reduce(other): Performs the reduce operation on the current worker and another worker, and returns the result.
+        map(): Maps the input data to a result using the map function.
+        reduce(other): Reduces two workers to a single worker using the reduce function.
+        create_workers(input_class, config): Creates a list of workers based on a configuration object and an input data class.
     """
 
     def __init__(self, input_data):
         """
-        Initializes the Worker object with the given input data.
+        Initializes a new GenericWorker object with the given input data.
 
         Args:
-            input_data (InputData): The input data for the worker.
+            input_data (GenericInputData): The input data for the worker.
         """
         self.input_data = input_data
         self.result = None
 
     def map(self):
         """
-        Performs the map operation on the input data and returns the result.
+        Maps the input data to a result using the map function.
 
-        Returns:
-            object: The result of the map operation.
+        Raises:
+            NotImplementedError: This method must be implemented by any concrete subclass.
         """
         raise NotImplementedError
 
     def reduce(self, other):
         """
-        Performs the reduce operation on the current worker and another worker, and returns the result.
+        Reduces two workers to a single worker using the reduce function.
 
         Args:
-            other (Worker): The other worker to perform the reduce operation with.
+            other (GenericWorker): The other worker to reduce with.
 
-        Returns:
-            object: The result of the reduce operation.
+        Raises:
+            NotImplementedError: This method must be implemented by any concrete subclass.
         """
         raise NotImplementedError
 
+    @classmethod
+    def create_workers(cls, input_class, config):
+        """
+        Creates a list of workers based on a configuration object and an input data class.
 
-class LineCountWorker(Worker):
+        Args:
+            input_class (type): The input data class to use for creating the workers.
+            config (object): A configuration object that specifies how to create the workers.
+
+        Returns:
+            list: A list of workers created based on the input data class and configuration object.
+        """
+        workers = []
+        for input_data in input_class.generate_inputs(config):
+            workers.append(cls(input_data))
+        return workers
+
+
+class LineCountWorker(GenericWorker):
     """
     This class represents a worker that counts the number of lines in input data. It inherits from the Worker class and overrides the map and reduce methods to perform the count operation.
 
@@ -136,38 +185,6 @@ class LineCountWorker(Worker):
         return self.result
 
 
-def generate_inputs(data_dir):
-    """
-    Generates PathInputData objects for all files in a given directory.
-
-    Args:
-        data_dir (str): The path to the directory containing the input data files.
-
-    Yields:
-        PathInputData: A PathInputData object for each input data file in the directory.
-    """
-    for name in os.listdir(data_dir):
-        path = os.path.join(data_dir, name)
-        if os.path.isfile(path):
-            yield PathInputData(path)
-
-
-def create_workers(input_list):
-    """
-    Creates LineCountWorker objects for a given list of input data.
-
-    Args:
-        input_list (list): A list of InputData objects to create workers for.
-
-    Returns:
-        list: A list of LineCountWorker objects created for the input data.
-    """
-    workers = []
-    for input_data in input_list:
-        workers.append(LineCountWorker(input_data))
-    return workers
-
-
 def execute(workers):
     """
     Executes a MapReduce operation on a list of workers.
@@ -189,16 +206,6 @@ def execute(workers):
     return first.result
 
 
-def mapreduce(data_dir):
-    """
-    Executes a MapReduce operation on a given directory of input data files.
-
-    Args:
-        data_dir (str): The path to the directory containing the input data files.
-
-    Returns:
-        object: The result of the MapReduce operation.
-    """
-    inputs = generate_inputs(data_dir)
-    workers = create_workers(inputs)
+def mapreduce(worker_class, input_class, config):
+    workers = worker_class.create_workers(input_class, config)
     return execute(workers)
