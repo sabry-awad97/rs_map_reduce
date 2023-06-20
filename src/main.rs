@@ -9,11 +9,16 @@ trait GenericInputData<T> {
     fn read(&self) -> T;
 }
 
-trait Worker {
+trait Mapper {
     fn map(&mut self);
-    fn reduce(&mut self, other: &dyn Worker);
+}
+
+trait Reducer {
+    fn reduce(&mut self, other: &dyn MapReducer);
     fn get_result(&self) -> usize;
 }
+
+trait MapReducer: Mapper + Reducer {}
 
 #[derive(Clone)]
 struct LineCountWorker {
@@ -21,13 +26,15 @@ struct LineCountWorker {
     result: usize,
 }
 
-impl Worker for LineCountWorker {
+impl Mapper for LineCountWorker {
     fn map(&mut self) {
         let data = self.input_data.read();
         self.result = data.lines().count();
     }
+}
 
-    fn reduce(&mut self, other: &dyn Worker) {
+impl Reducer for LineCountWorker {
+    fn reduce(&mut self, other: &dyn MapReducer) {
         self.result += other.get_result();
     }
 
@@ -35,6 +42,8 @@ impl Worker for LineCountWorker {
         self.result
     }
 }
+
+impl MapReducer for LineCountWorker {}
 
 struct FileInputData {
     file_path: PathBuf,
@@ -71,8 +80,9 @@ where
             .flatten()
         {
             let file_path = entry.path();
-            let input_data = Box::new(FileInputData::new(file_path));
-            inputs.push(input_data as Box<dyn GenericInputData<T>>);
+            let input_data =
+                Box::new(FileInputData::new(file_path)) as Box<dyn GenericInputData<T>>;
+            inputs.push(input_data);
         }
     }
     inputs
@@ -80,7 +90,7 @@ where
 
 fn create_workers(
     input_list: Vec<Box<dyn GenericInputData<String>>>,
-) -> Vec<Arc<Mutex<dyn Worker>>> {
+) -> Vec<Arc<Mutex<dyn MapReducer>>> {
     let mut workers = Vec::new();
 
     for input_data in input_list {
@@ -89,7 +99,7 @@ fn create_workers(
             result: 0,
         }));
 
-        workers.push(worker as Arc<Mutex<dyn Worker>>);
+        workers.push(worker as Arc<Mutex<dyn MapReducer>>);
     }
 
     workers
