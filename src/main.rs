@@ -5,8 +5,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-trait GenericInputData {
-    fn read(&self) -> String;
+trait GenericInputData<T> {
+    fn read(&self) -> T;
 }
 
 trait Worker {
@@ -17,7 +17,7 @@ trait Worker {
 
 #[derive(Clone)]
 struct LineCountWorker {
-    input_data: Arc<Box<dyn GenericInputData>>,
+    input_data: Arc<dyn GenericInputData<String>>,
     result: usize,
 }
 
@@ -46,17 +46,23 @@ impl FileInputData {
     }
 }
 
-impl GenericInputData for FileInputData {
-    fn read(&self) -> String {
+impl<T> GenericInputData<T> for FileInputData
+where
+    T: From<String>,
+{
+    fn read(&self) -> T {
         let mut file = File::open(&self.file_path).expect("Failed to open file");
         let mut content = String::new();
         file.read_to_string(&mut content)
             .expect("Failed to read file");
-        content
+        T::from(content)
     }
 }
 
-fn generate_inputs(data_dir: &str) -> Vec<Box<dyn GenericInputData>> {
+fn generate_inputs<T>(data_dir: &str) -> Vec<Box<dyn GenericInputData<T>>>
+where
+    T: From<String>,
+{
     let path = Path::new(data_dir);
     let mut inputs = Vec::new();
     if path.is_dir() {
@@ -66,13 +72,15 @@ fn generate_inputs(data_dir: &str) -> Vec<Box<dyn GenericInputData>> {
         {
             let file_path = entry.path();
             let input_data = Box::new(FileInputData::new(file_path));
-            inputs.push(input_data as Box<dyn GenericInputData>);
+            inputs.push(input_data as Box<dyn GenericInputData<T>>);
         }
     }
     inputs
 }
 
-fn create_workers(input_list: Vec<Box<dyn GenericInputData>>) -> Vec<Arc<Mutex<dyn Worker>>> {
+fn create_workers(
+    input_list: Vec<Box<dyn GenericInputData<String>>>,
+) -> Vec<Arc<Mutex<dyn Worker>>> {
     let mut workers = Vec::new();
 
     for input_data in input_list {
@@ -88,12 +96,12 @@ fn create_workers(input_list: Vec<Box<dyn GenericInputData>>) -> Vec<Arc<Mutex<d
 }
 
 fn main() {
-    let input_list = generate_inputs("test_inputs");
+    let input_list = generate_inputs::<String>("test_inputs");
     let mut workers = create_workers(input_list);
 
     if let Some(first_worker) = workers.first().cloned() {
         let mut first_worker = first_worker.lock().unwrap();
-        
+
         for worker in workers.iter_mut().skip(1) {
             let mut worker = worker.lock().unwrap();
             worker.map();
