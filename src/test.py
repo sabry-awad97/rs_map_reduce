@@ -1,9 +1,8 @@
 import unittest
 import tempfile
 import shutil
-from threading import Thread
 import os
-from main import PathInputData, LineCountWorker, generate_inputs, create_workers, execute, mapreduce
+from main import PathInputData, LineCountWorker, execute, mapreduce
 
 
 class MapReduceTestCase(unittest.TestCase):
@@ -43,37 +42,11 @@ class MapReduceTestCase(unittest.TestCase):
         # Check the result
         self.assertEqual(worker.result, 3)
 
-    def test_generate_inputs(self):
-        # Generate inputs from the temporary directory
-        inputs = list(generate_inputs(self.temp_dir))
-
-        # Check the number of input data objects
-        self.assertEqual(len(inputs), 3)
-
-        # Check the paths of the input data objects
-        expected_paths = [self.file1, self.file2, self.file3]
-        actual_paths = [input_data.path for input_data in inputs]
-        self.assertCountEqual(actual_paths, expected_paths)
-
-    def test_create_workers(self):
-        # Create a list of input data objects
-        inputs = list(generate_inputs(self.temp_dir))
-
-        # Create workers from the input data objects
-        workers = create_workers(inputs)
-
-        # Check the number of workers
-        self.assertEqual(len(workers), 3)
-
-        # Check the input data paths of the workers
-        expected_paths = [self.file1, self.file2, self.file3]
-        actual_paths = [worker.input_data.path for worker in workers]
-        self.assertCountEqual(actual_paths, expected_paths)
-
     def test_execute(self):
         # Create a list of workers
-        inputs = list(generate_inputs(self.temp_dir))
-        workers = create_workers(inputs)
+        inputs = [PathInputData(self.file1), PathInputData(
+            self.file2), PathInputData(self.file3)]
+        workers = [LineCountWorker(input_data) for input_data in inputs]
 
         # Execute the MapReduce operation
         result = execute(workers)
@@ -82,8 +55,11 @@ class MapReduceTestCase(unittest.TestCase):
         self.assertEqual(result, 9)
 
     def test_mapreduce(self):
+        # Create a configuration object
+        config = {'data_dir': self.temp_dir}
+
         # Execute the MapReduce operation
-        result = mapreduce(self.temp_dir)
+        result = mapreduce(LineCountWorker, PathInputData, config)
 
         # Check the result
         self.assertEqual(result, 9)
