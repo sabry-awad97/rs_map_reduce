@@ -93,3 +93,40 @@ class Worker:
             object: The result of the reduce operation.
         """
         raise NotImplementedError
+
+
+class LineCountWorker(Worker):
+    """
+    This class represents a worker that counts the number of lines in input data. It inherits from the Worker class and overrides the map and reduce methods to perform the count operation.
+
+    Attributes:
+        input_data (InputData): The input data for the worker.
+        result (int): The number of lines in the input data.
+
+    Methods:
+        map(): Counts the number of lines in the input data and returns the result.
+        reduce(other): Adds the number of lines in another worker to the current worker's result and returns the result.
+    """
+
+    def map(self):
+        """
+        Counts the number of lines in the input data and returns the result.
+
+        Returns:
+            int: The number of lines in the input data.
+        """
+        data = self.input_data.read()
+        self.result = data.count('\n')
+
+    def reduce(self, other):
+        """
+        Adds the number of lines in another worker to the current worker's result and returns the result.
+
+        Args:
+            other (LineCountWorker): The other worker to add the number of lines to.
+
+        Returns:
+            int: The total number of lines in the input data.
+        """
+        self.result += other.result
+        return self.result
